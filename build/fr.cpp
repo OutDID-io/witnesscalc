@@ -1654,6 +1654,16 @@ void Fr_neq(PFrElement r, PFrElement a, PFrElement b)
     r->type = Fr_SHORT;
 }
 
+
+void Fr_leq(PFrElement r, PFrElement a, PFrElement b) {
+    r->type = Fr_SHORT;
+    if (Fr_rgt(r, a, b)) {
+        r->shortVal = 0;
+    } else {
+        r->shortVal = 1;
+    }
+}
+
 // Logical or between two elements
 void Fr_lor(PFrElement r, PFrElement a, PFrElement b)
 {
@@ -2136,6 +2146,498 @@ void Fr_band(PFrElement r, PFrElement a, PFrElement b)
     }
 }
 
+static inline void or_s1s2(PFrElement r, PFrElement a, PFrElement b)
+{
+    if (a->shortVal >= 0 && b->shortVal >= 0)
+    {
+        int32_t result = a->shortVal | b->shortVal;
+        r->shortVal = result;
+        r->type = Fr_SHORT;
+        return;
+    }
+
+    r->type = Fr_LONG;
+
+    FrElement a_n;
+    FrElement b_n;
+
+    Fr_toLongNormal(&b_n, b);
+    Fr_toLongNormal(&a_n, a);
+
+    mpn_ior_n(r->longVal, a_n.longVal, b->longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+static inline void or_l1nl2n(PFrElement r, PFrElement a, PFrElement b)
+{
+    r->type = Fr_LONG;
+
+    mpn_ior_n(r->longVal, a->longVal, b->longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+static inline void or_l1nl2m(PFrElement r, PFrElement a, PFrElement b)
+{
+    r->type = Fr_LONG;
+
+    FrElement b_n;
+    Fr_toNormal(&b_n, b);
+
+    mpn_ior_n(r->longVal, a->longVal, b_n.longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+static inline void or_l1ml2m(PFrElement r, PFrElement a, PFrElement b)
+{
+    r->type = Fr_LONG;
+
+    FrElement a_n;
+    FrElement b_n;
+
+    Fr_toNormal(&a_n, a);
+    Fr_toNormal(&b_n, b);
+
+    mpn_ior_n(r->longVal, a_n.longVal, b_n.longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+static inline void or_l1ml2n(PFrElement r, PFrElement a, PFrElement b)
+{
+    r->type = Fr_LONG;
+
+    FrElement a_n;
+    Fr_toNormal(&a_n, a);
+
+    mpn_ior_n(r->longVal, a_n.longVal, b->longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+static inline void or_s1l2n(PFrElement r, PFrElement a, PFrElement b)
+{
+    r->type = Fr_LONG;
+
+    FrElement a_n;
+
+    if (a->shortVal >= 0)
+    {
+        a_n = {0, 0, {(uint64_t)a->shortVal, 0, 0, 0}};
+    }
+    else
+    {
+        Fr_toLongNormal(&a_n, a);
+    }
+
+    mpn_ior_n(r->longVal, a_n.longVal, b->longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+static inline void or_l1ms2(PFrElement r, PFrElement a, PFrElement b)
+{
+    r->type = Fr_LONG;
+
+    FrElement a_n;
+    FrElement b_n;
+
+    Fr_toNormal(&a_n, a);
+
+    if (b->shortVal >= 0)
+    {
+        b_n = {0, 0, {(uint64_t)b->shortVal, 0, 0, 0}};
+    }
+    else
+    {
+        Fr_toLongNormal(&b_n, b);
+    }
+
+    mpn_ior_n(r->longVal, b_n.longVal, a_n.longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+static inline void or_s1l2m(PFrElement r, PFrElement a, PFrElement b)
+{
+    r->type = Fr_LONG;
+
+    FrElement a_n;
+    FrElement b_n;
+
+    Fr_toNormal(&b_n, b);
+
+    if (a->shortVal >= 0)
+    {
+        a_n = {0, 0, {(uint64_t)a->shortVal, 0, 0, 0}};
+    }
+    else
+    {
+        Fr_toLongNormal(&a_n, a);
+    }
+
+    mpn_ior_n(r->longVal, a_n.longVal, b_n.longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+static inline void or_l1ns2(PFrElement r, PFrElement a, PFrElement b)
+{
+    r->type = Fr_LONG;
+
+    FrElement b_n;
+
+    if (b->shortVal >= 0)
+    {
+        b_n = {0, 0, {(uint64_t)b->shortVal, 0, 0, 0}};
+    }
+    else
+    {
+        Fr_toLongNormal(&b_n, b);
+    }
+
+    mpn_ior_n(r->longVal, a->longVal, b_n.longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+// ORs two elements of any kind
+void Fr_bor(PFrElement r, PFrElement a, PFrElement b)
+{
+    if (a->type & Fr_LONG)
+    {
+        if (b->type & Fr_LONG)
+        {
+            if (a->type & Fr_MONTGOMERY)
+            {
+                if (b->type & Fr_MONTGOMERY)
+                {
+                    or_l1ml2m(r, a, b);
+                }
+                else
+                {
+                    or_l1ml2n(r, a, b);
+                }
+            }
+            else if (b->type & Fr_MONTGOMERY)
+            {
+                or_l1nl2m(r, a, b);
+            }
+            else
+            {
+                or_l1nl2n(r, a, b);
+            }
+        }
+        else if (a->type & Fr_MONTGOMERY)
+        {
+            or_l1ms2(r, a, b);
+        }
+        else
+        {
+           or_l1ns2(r, a, b);
+        }
+    }
+    else if (b->type & Fr_LONG)
+    {
+        if (b->type & Fr_MONTGOMERY)
+        {
+            or_s1l2m(r, a, b);
+        }
+        else
+        {
+            or_s1l2n(r, a, b);
+        }
+    }
+    else
+    {
+         or_s1s2(r, a, b);
+    }
+}
+
+static inline void xor_s1s2(PFrElement r, PFrElement a, PFrElement b)
+{
+    if (a->shortVal >= 0 && b->shortVal >= 0)
+    {
+        int32_t result = a->shortVal | b->shortVal;
+        r->shortVal = result;
+        r->type = Fr_SHORT;
+        return;
+    }
+
+    r->type = Fr_LONG;
+
+    FrElement a_n;
+    FrElement b_n;
+
+    Fr_toLongNormal(&b_n, b);
+    Fr_toLongNormal(&a_n, a);
+
+    mpn_xor_n(r->longVal, a_n.longVal, b->longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+static inline void xor_l1nl2n(PFrElement r, PFrElement a, PFrElement b)
+{
+    r->type = Fr_LONG;
+
+    mpn_xor_n(r->longVal, a->longVal, b->longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+static inline void xor_l1nl2m(PFrElement r, PFrElement a, PFrElement b)
+{
+    r->type = Fr_LONG;
+
+    FrElement b_n;
+    Fr_toNormal(&b_n, b);
+
+    mpn_xor_n(r->longVal, a->longVal, b_n.longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+static inline void xor_l1ml2m(PFrElement r, PFrElement a, PFrElement b)
+{
+    r->type = Fr_LONG;
+
+    FrElement a_n;
+    FrElement b_n;
+
+    Fr_toNormal(&a_n, a);
+    Fr_toNormal(&b_n, b);
+
+    mpn_xor_n(r->longVal, a_n.longVal, b_n.longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+static inline void xor_l1ml2n(PFrElement r, PFrElement a, PFrElement b)
+{
+    r->type = Fr_LONG;
+
+    FrElement a_n;
+    Fr_toNormal(&a_n, a);
+
+    mpn_xor_n(r->longVal, a_n.longVal, b->longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+static inline void xor_s1l2n(PFrElement r, PFrElement a, PFrElement b)
+{
+    r->type = Fr_LONG;
+
+    FrElement a_n;
+
+    if (a->shortVal >= 0)
+    {
+        a_n = {0, 0, {(uint64_t)a->shortVal, 0, 0, 0}};
+    }
+    else
+    {
+        Fr_toLongNormal(&a_n, a);
+    }
+
+    mpn_xor_n(r->longVal, a_n.longVal, b->longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+static inline void xor_l1ms2(PFrElement r, PFrElement a, PFrElement b)
+{
+    r->type = Fr_LONG;
+
+    FrElement a_n;
+    FrElement b_n;
+
+    Fr_toNormal(&a_n, a);
+
+    if (b->shortVal >= 0)
+    {
+        b_n = {0, 0, {(uint64_t)b->shortVal, 0, 0, 0}};
+    }
+    else
+    {
+        Fr_toLongNormal(&b_n, b);
+    }
+
+    mpn_xor_n(r->longVal, b_n.longVal, a_n.longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+static inline void xor_s1l2m(PFrElement r, PFrElement a, PFrElement b)
+{
+    r->type = Fr_LONG;
+
+    FrElement a_n;
+    FrElement b_n;
+
+    Fr_toNormal(&b_n, b);
+
+    if (a->shortVal >= 0)
+    {
+        a_n = {0, 0, {(uint64_t)a->shortVal, 0, 0, 0}};
+    }
+    else
+    {
+        Fr_toLongNormal(&a_n, a);
+    }
+
+    mpn_xor_n(r->longVal, a_n.longVal, b_n.longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+static inline void xor_l1ns2(PFrElement r, PFrElement a, PFrElement b)
+{
+    r->type = Fr_LONG;
+
+    FrElement b_n;
+
+    if (b->shortVal >= 0)
+    {
+        b_n = {0, 0, {(uint64_t)b->shortVal, 0, 0, 0}};
+    }
+    else
+    {
+        Fr_toLongNormal(&b_n, b);
+    }
+
+    mpn_xor_n(r->longVal, a->longVal, b_n.longVal, Fr_N64);
+    r->longVal[3] &= lboMask;
+
+    if (mpn_cmp(r->longVal, Fr_rawq, Fr_N64) >= 0)
+    {
+        mpn_sub_n(r->longVal, r->longVal, Fr_rawq, Fr_N64);
+    }
+}
+
+// XORs two elements of any kind
+void Fr_bxor(PFrElement r, PFrElement a, PFrElement b)
+{
+    if (a->type & Fr_LONG)
+    {
+        if (b->type & Fr_LONG)
+        {
+            if (a->type & Fr_MONTGOMERY)
+            {
+                if (b->type & Fr_MONTGOMERY)
+                {
+                    xor_l1ml2m(r, a, b);
+                }
+                else
+                {
+                    xor_l1ml2n(r, a, b);
+                }
+            }
+            else if (b->type & Fr_MONTGOMERY)
+            {
+                xor_l1nl2m(r, a, b);
+            }
+            else
+            {
+                xor_l1nl2n(r, a, b);
+            }
+        }
+        else if (a->type & Fr_MONTGOMERY)
+        {
+            xor_l1ms2(r, a, b);
+        }
+        else
+        {
+           xor_l1ns2(r, a, b);
+        }
+    }
+    else if (b->type & Fr_LONG)
+    {
+        if (b->type & Fr_MONTGOMERY)
+        {
+            xor_s1l2m(r, a, b);
+        }
+        else
+        {
+            xor_s1l2n(r, a, b);
+        }
+    }
+    else
+    {
+         xor_s1s2(r, a, b);
+    }
+}
+
 void Fr_rawZero(FrRawElement pRawResult)
 {
     std::memset(pRawResult, 0, sizeof(FrRawElement));
@@ -2395,6 +2897,81 @@ void Fr_shr(PFrElement r, PFrElement a, PFrElement b)
         else
         {
             do_shr(r, a, b_shortVal);
+        }
+    }
+}
+
+static inline void Fr_shl_big_shift(PFrElement r, PFrElement a, PFrElement b)
+{
+    static uint64_t max_shift[Fr_N64] = {254, 0, 0, 0};
+
+    uint64_t shift[Fr_N64];
+
+    mpn_sub_n(shift, Fr_rawq, b->longVal, Fr_N64);
+
+    if (mpn_cmp(shift, max_shift, Fr_N64) >= 0)
+    {
+        Fr_setzero(r);
+    }
+    else
+    {
+        do_shr(r, a, shift[0]);
+    }
+}
+
+static inline void Fr_shl_long(PFrElement r, PFrElement a, PFrElement b)
+{
+    static uint64_t max_shift[Fr_N64] = {254, 0, 0, 0};
+
+    if (mpn_cmp(b->longVal, max_shift, Fr_N64) >= 0)
+    {
+        Fr_shl_big_shift(r, a, b);
+    }
+    else
+    {
+        do_shl(r, a, b->longVal[0]);
+    }
+}
+
+void Fr_shl(PFrElement r, PFrElement a, PFrElement b) {
+    if (b->type & Fr_LONG)
+    {
+        if (b->type == Fr_LONGMONTGOMERY)
+        {
+            FrElement b_long;
+            Fr_toNormal(&b_long, b);
+
+            Fr_shl_long(r, a, &b_long);
+        }
+        else
+        {
+            Fr_shl_long(r, a, b);
+        }
+    }
+    else
+    {
+        int32_t b_shortVal = b->shortVal;
+
+        if (b_shortVal < 0)
+        {
+            b_shortVal = -b_shortVal;
+
+            if (b_shortVal >= 254)
+            {
+                Fr_setzero(r);
+            }
+            else
+            {
+                do_shr(r, a, b_shortVal);
+            }
+        }
+        else if (b_shortVal >= 254)
+        {
+            Fr_setzero(r);
+        }
+        else
+        {
+            do_shl(r, a, b_shortVal);
         }
     }
 }
