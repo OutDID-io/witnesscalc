@@ -7410,7 +7410,7 @@ setzero:
 ;;;;;;;;;;;;;;;;;;;;;;
 ; rgt - Raw Greater Than
 ;;;;;;;;;;;;;;;;;;;;;;
-; returns in ax 1 id *rsi > *rdx
+; returns in ax 1 if *rsi > *rdx
 ; Params:
 ;   rsi <= Pointer to element 1
 ;   rdx <= Pointer to element 2
